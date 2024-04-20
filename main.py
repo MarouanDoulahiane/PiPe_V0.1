@@ -3,6 +3,7 @@ import json
 from moviepy.editor import *
 import random
 import os
+import subprocess
 
 
 
@@ -157,6 +158,10 @@ for movie in moviesDB['results']:
 
     imageFrames = extract_video_clips(f"tmp/{movie_id}.mp4", 10)
     create_video_from_clips(imageFrames, f"out/{movie_id}_out.mp4", f"tmp/{movie_id}.mp3", f"tmp/{movie_id}.mp4", "ads.jpg")
+
+    commandYoutube_uploader = ["python", "youtube_uploader.py", "--file", f"out/{movie_id}_out.mp4", "--title", movie_title, "--description", movie_overview, "--category", "22", "--keywords", "movies", "--privacyStatus", "public"]
+    subprocess.run(commandYoutube_uploader)
+
     #  remove the tmp files
     os.remove(f"tmp/{movie_id}.mp4")
     os.remove(f"tmp/{movie_id}.mp3")
