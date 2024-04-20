@@ -157,6 +157,10 @@ for movie in moviesDB['results']:
 
     imageFrames = extract_video_clips(f"tmp/{movie_id}.mp4", 10)
     create_video_from_clips(imageFrames, f"out/{movie_id}_out.mp4", f"tmp/{movie_id}.mp3", f"tmp/{movie_id}.mp4", "ads.jpg")
+    #  remove the tmp files
+    os.remove(f"tmp/{movie_id}.mp4")
+    os.remove(f"tmp/{movie_id}.mp3")
+    os.remove(f"tmp/{movie_id}.jpg")
     break
 
     # next step is to upload the video to youtube
