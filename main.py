@@ -116,55 +116,47 @@ with open("movie_ids.txt", "r") as f:
 
 for movie in moviesDB['results']:
     # check if the movie id is in the movie_ids.txt file
-    try :
-        if str(movie['id']) in movie_ids:
-            continue
-        movie_id = movie['id']
-        movie_title = movie['title']
-        movie_overview = movie['overview']
-        movie_release_date = movie['release_date']
-        movie_poster_path = movie['poster_path']
-        movie_image = f"https://image.tmdb.org/t/p/original/{movie['backdrop_path']}"
-        # download the image and save it as $(id).jpg
-        image_response = requests.get(movie_image)
-        with open(f"{movie_id}.jpg", "wb") as f:
-            f.write(image_response.content)
-        # save the movie id in the database
-        # we will use a simple text file to store the movie ids
-        with open("movie_ids.txt", "a") as f:
-            f.write(str(movie_id) + "\n")
-        # we will also save the movie details in a json file
-        with open("movies.json", "a") as f:
-            f.write(json.dumps(movie) + "\n")
-        # we will also save the movie details in a csv file
-        with open("movies.csv", "a") as f:
-            f.write(f"{movie_id},{movie_title},{movie_overview},{movie_release_date},{movie_image}\n")
-        
-        payload = {
-            "response_as_dict": True,
-            "attributes_as_list": False,
-            "show_original_response": False,
-            "rate": 0,
-            "pitch": 0,
-            "volume": 0,
-            "sampling_rate": 0,
-            "providers": "google",
-            "language": "en",
-            "text": f"{movie_title} is a movie that was released on {movie_release_date}. {movie_overview}",
-            "option": "MALE"
-        }   
-        responseSpeech = requests.post(urlSpeech, headers=headersSpeech, data=json.dumps(payload))
-        voiceover = responseSpeech.json()
-        voiceover_url = voiceover['google']['audio_resource_url']
-        voiceover_response = requests.get(voiceover_url)
-        with open(f"{movie_id}.mp3", "wb") as f:
-            f.write(voiceover_response.content)
-        download_video(get_movie_trailer(movie_id), f"{movie_id}.mp4")
-    
-        imageFrames = extract_video_clips(f"{movie_id}.mp4", 10)
-        create_video_from_clips(imageFrames, f"{movie_id}_out.mp4", f"{movie_id}.mp3", f"{movie_id}.mp4", "ads.jpg")
-        break
-    except:
+    # try :
+    if str(movie['id']) in movie_ids:
         continue
+    movie_id = movie['id']
+    movie_title = movie['title']
+    movie_overview = movie['overview']
+    movie_release_date = movie['release_date']
+    movie_poster_path = movie['poster_path']
+    movie_image = f"https://image.tmdb.org/t/p/original/{movie['backdrop_path']}"
+    # download the image and save it as $(id).jpg
+    image_response = requests.get(movie_image)
+    with open(f"tmp/{movie_id}.jpg", "wb") as f:
+        f.write(image_response.content)
+    # save the movie id in the database
+    # we will use a simple text file to store the movie ids
+    with open("movie_ids.txt", "a") as f:
+        f.write(str(movie_id) + "\n")
     
+    payload = {
+        "response_as_dict": True,
+        "attributes_as_list": False,
+        "show_original_response": False,
+        "rate": 0,
+        "pitch": 0,
+        "volume": 0,
+        "sampling_rate": 0,
+        "providers": "google",
+        "language": "en",
+        "text": f"{movie_title} is a movie that was released on {movie_release_date}. {movie_overview}",
+        "option": "MALE"
+    }   
+    responseSpeech = requests.post(urlSpeech, headers=headersSpeech, data=json.dumps(payload))
+    voiceover = responseSpeech.json()
+    voiceover_url = voiceover['google']['audio_resource_url']
+    voiceover_response = requests.get(voiceover_url)
+    with open(f"tmp/{movie_id}.mp3", "wb") as f:
+        f.write(voiceover_response.content)
+    download_video(get_movie_trailer(movie_id), f"tmp/{movie_id}.mp4")
+
+    imageFrames = extract_video_clips(f"tmp/{movie_id}.mp4", 10)
+    create_video_from_clips(imageFrames, f"out/{movie_id}_out.mp4", f"tmp/{movie_id}.mp3", f"tmp/{movie_id}.mp4", "ads.jpg")
+    break
+
     # next step is to upload the video to youtube
