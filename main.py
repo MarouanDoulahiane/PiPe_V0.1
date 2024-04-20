@@ -4,7 +4,11 @@ from moviepy.editor import *
 import random
 import os
 import subprocess
+import youtube_dl
+from urllib.parse import urlparse, parse_qs
 
+# print youtube_dl path
+print(youtube_dl.__file__)
 
 
 TextClip.list('font')
@@ -31,6 +35,43 @@ headersSpeech = {
     "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZjY5MjNiNmUtY2I3YS00NmU2LWFiYjktMWEzOGFjMzk0MmUyIiwidHlwZSI6ImFwaV90b2tlbiJ9.0ysUt_KR5d0MGWOIe7pb1yCiXX-Bd-yZVURU4tBowFI"
 }
 
+
+
+
+def get_keywords(movie_id):
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}/keywords?language=en-US"
+    headers = {
+        "accept": "application/json",
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlMTBhNTg2Y2VlYzlhY2Q0NDNjYjM2NDIxYWFmNzk2OSIsInN1YiI6IjY2MjE0MjRmY2NkZTA0MDE4ODA1YzU1YiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.yZDD6KFv3qFqYZGEq5yGHVPaN7WiSrq84ZY490qMoqk"
+    }
+    response = requests.get(url, headers=headers)
+    keywords = response.json()
+    results = []
+    for keyword in keywords['keywords']:
+        results.append(keyword['name'])
+    return results
+
+
+from pytube import YouTube
+
+def download_video(url, output_path):
+    try:
+        yt = YouTube(url)
+        video = yt.streams.get_highest_resolution()
+        print(f"Downloading: {yt.title}")
+        video.download('tmp', filename=output_path)
+
+        print("Download completed successfully!")
+    except Exception as e:
+        print(f"Error downloading video: {e}")
+
+def get_video_id(url):
+    parsed_url = urlparse(url)
+    query = parse_qs(parsed_url.query)
+    video_id = query["v"][0] if "v" in query else None
+    return video_id
+
+
 def get_movie_trailer(movie_id):
     url = f"https://api.themoviedb.org/3/movie/{movie_id}/videos?language=en-US"
     headers = {
@@ -39,25 +80,35 @@ def get_movie_trailer(movie_id):
     }
     response = requests.get(url, headers=headers)
     trailer = response.json()
-    return trailer['results'][0]['key']
+    trailerResults = trailer['results'][0]['key']
+    # if it's a video in youtube
+    for video in trailer['results']:
+        if video['site'] == 'YouTube' or video['site'] == 'youtube':
+            return video['key']
+    return trailerResults
 
-def download_video(videoId, output_path):
-    # Download the video
-    url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
 
-    querystring = {"videoId":videoId}
+# def download_video(videoId, output_path):
+#     # Download the video
+#     url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
 
-    headers = {
-        'X-RapidAPI-Key': '8f08f20011msh2cd369dec7a2039p1052fajsnba70a0b6e04d',
-        'X-RapidAPI-Host': 'youtube-media-downloader.p.rapidapi.com'
-    }
+#     querystring = {"videoId":videoId}
 
-    response = requests.get(url, headers=headers, params=querystring)
+#     headers = {
+#         'X-RapidAPI-Key': '8f08f20011msh2cd369dec7a2039p1052fajsnba70a0b6e04d',
+#         'X-RapidAPI-Host': 'youtube-media-downloader.p.rapidapi.com'
+#     }
 
-    videoUrlDownload = response.json()['videos']['items'][0]['url']
-    videoResponse = requests.get(videoUrlDownload)
-    with open(output_path, "wb") as f:
-        f.write(videoResponse.content)
+#     response = requests.get(url, headers=headers, params=querystring)
+#     print(json.dumps(response.json(), indent=4))
+#     try:
+#         videoUrlDownload = response.json()['videos']['items'][0]['url']
+#     except Exception as e:
+#         print(e)
+#         return
+#     videoResponse = requests.get(videoUrlDownload)
+#     with open(output_path, "wb") as f:
+#         f.write(videoResponse.content)
 
 
 def extract_video_clips_X(video_path, nb_clips, duration):
@@ -75,6 +126,10 @@ def extract_video_clips_X(video_path, nb_clips, duration):
     return clips
 
 def extract_video_clips(video_path, duration):
+    # check if video exists
+    if not os.path.exists(video_path):
+        print("Video does not exist")
+        return []
     video = VideoFileClip(video_path)
     clips = []
   
@@ -91,6 +146,8 @@ from moviepy.video.fx.resize import resize
 
 def create_video_from_clips(clips, output_path, audio_path, video_path=None, image_path=None):
     # Concatenate video clips and set audio
+    if clips == []:
+        return
     final_clip = concatenate_videoclips(clips)
     audio = AudioFileClip(audio_path)
     final_clip = final_clip.set_audio(audio)
@@ -132,8 +189,8 @@ for movie in moviesDB['results']:
         f.write(image_response.content)
     # save the movie id in the database
     # we will use a simple text file to store the movie ids
-    with open("movie_ids.txt", "a") as f:
-        f.write(str(movie_id) + "\n")
+    # with open("movie_ids.txt", "a") as f:
+    #     f.write(str(movie_id) + "\n")
     
     payload = {
         "response_as_dict": True,
@@ -154,18 +211,42 @@ for movie in moviesDB['results']:
     voiceover_response = requests.get(voiceover_url)
     with open(f"tmp/{movie_id}.mp3", "wb") as f:
         f.write(voiceover_response.content)
-    download_video(get_movie_trailer(movie_id), f"tmp/{movie_id}.mp4")
+
+    # download_video(get_movie_trailer(movie_id), f"tmp/{movie_id}.mp4")
+    # command = ["youtube-dl", "-o", f"tmp/{movie_id}.mp4", f"https://www.youtube.com/watch?v={get_movie_trailer(movie_id)}", "-f", 'bestvideo[height<=480]+bestaudio/best[height<=480]', 
+    # "--recode-video", "mp4"]
+    # subprocess.Popen(command)
+
+    # ydl = {
+    #     'format': 'bestvideo[height<=480]+bestaudio/best[height<=480]',
+    #     'outtmpl': f"tmp/{movie_id}",
+    #     'recode-video': 'mp4'
+    # }
+    # with youtube_dl.YoutubeDL(ydl) as ydl:
+    #     ydl.download([f"https://www.youtube.com/watch?v={get_movie_trailer(movie_id)}"])
+    
+    download_video(f"https://www.youtube.com/watch?v={get_video_id(f'https://www.youtube.com/watch?v={get_movie_trailer(movie_id)}')}", f"{movie_id}.mp4")
+
+
+    # we must wait for the video to be downloaded
+    # we can check if the file exists
+    
+
 
     imageFrames = extract_video_clips(f"tmp/{movie_id}.mp4", 10)
     create_video_from_clips(imageFrames, f"out/{movie_id}_out.mp4", f"tmp/{movie_id}.mp3", f"tmp/{movie_id}.mp4", "ads.jpg")
 
-    commandYoutube_uploader = ["python", "youtube_uploader.py", "--file", f"out/{movie_id}_out.mp4", "--title", movie_title, "--description", movie_overview, "--category", "22", "--keywords", "movies", "--privacyStatus", "public"]
-    subprocess.run(commandYoutube_uploader)
+    commandYoutube_uploader = ["python", "youtube_uploader.py", "--verbose", "--file", f"out/{movie_id}_out.mp4", "--title", movie_title, "--description", movie_overview, "--category", "22", "--keywords", "movies", "--privacyStatus", "public"]
+    # subprocess.Popen(commandYoutube_uploader)
+
+    # print keywords
+    print(get_keywords(movie_id))
 
     #  remove the tmp files
-    os.remove(f"tmp/{movie_id}.mp4")
-    os.remove(f"tmp/{movie_id}.mp3")
-    os.remove(f"tmp/{movie_id}.jpg")
-    break
-
+    try:
+        os.remove(f"tmp/{movie_id}.mp3")
+        os.remove(f"tmp/{movie_id}.jpg")
+        os.remove(f"tmp/{movie_id}.mp4")
+    except:
+        pass
     # next step is to upload the video to youtube
